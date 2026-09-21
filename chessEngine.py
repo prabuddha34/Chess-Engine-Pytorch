@@ -1,12 +1,10 @@
-import pygame
 import chess
 import torch
 import os
 import torch.nn as nn
 import random
 import torch.optim as optim
-from flask import Flask, render_template, jsonify, request
-import os
+from flask import Flask, jsonify, request, send_file
 
 #First we are going to make the grid settings of the chess ok ><
 #so yeah we can do this project huh><>??
@@ -271,6 +269,11 @@ def minimax(board, depth, alpha, beta, maximizing):
         return evaluateWork(board), None
 
 
+    if board.is_game_over():
+
+        return evaluateWork(board), None
+
+
     if maximizing:
 
         best = -float("inf")
@@ -367,8 +370,6 @@ def ai_move(board):
     return move
 
 
-from flask import Flask, jsonify, request, send_file
-
 app = Flask(__name__)
 
 board = chess.Board()
@@ -376,16 +377,21 @@ board = chess.Board()
 
 @app.route("/")
 def home():
-    return send_file("index1.html")
+
+    return send_file("index.html")
 
 
 @app.route("/board")
 def get_board():
 
     return jsonify({
+
         "fen": board.fen(),
+
         "game_over": board.is_game_over(),
+
         "result": board.result()
+
     })
 
 
@@ -394,9 +400,18 @@ def player_move():
 
     global board
 
-    move = chess.Move.from_uci(
-        request.json["move"]
-    )
+    try:
+
+        move = chess.Move.from_uci(
+            request.json["move"]
+        )
+
+    except:
+
+        return jsonify({
+            "error": "Invalid move"
+        }), 400
+
 
     if move not in board.legal_moves:
 
@@ -404,16 +419,20 @@ def player_move():
             "error": "Illegal move"
         }), 400
 
+
     board.push(move)
 
     ai = None
+
 
     if not board.is_game_over():
 
         ai = ai_move(board)
 
         if ai:
+
             board.push(ai)
+
 
     return jsonify({
 
@@ -436,10 +455,20 @@ def new_game():
     board = chess.Board()
 
     return jsonify({
+
         "fen": board.fen(),
-        "game_over": False
+
+        "game_over": False,
+
+        "result": "*"
+
     })
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=True
+    )
