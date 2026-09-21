@@ -2,3 +2,4 @@ flask
 gunicorn
 torch
 python-chess
+pygame
