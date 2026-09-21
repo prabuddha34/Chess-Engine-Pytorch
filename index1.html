@@ -1,10 +1,406 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+
+    <title>Praxxy Chess</title>
+
+    <style>
+
+        body {
+            background: #222;
+            color: white;
+            font-family: Arial;
+            text-align: center;
+        }
+
+        #board {
+
+            width: 640px;
+            height: 640px;
+
+            margin: 20px auto;
+
+            display: grid;
+
+            grid-template-columns: repeat(8, 1fr);
+
+        }
+
+        .square {
+
+            width: 80px;
+            height: 80px;
+
+            display: flex;
+
+            justify-content: center;
+            align-items: center;
+
+            font-size: 55px;
+
+            cursor: pointer;
+
+            user-select: none;
+        }
+
+        .light {
+            background: #f0d9b5;
+        }
+
+        .dark {
+            background: #b58863;
+        }
+
+        .selected {
+            outline: 5px solid yellow;
+            outline-offset: -5px;
+        }
+
+        button {
+
+            padding: 10px 25px;
+
+            font-size: 18px;
+
+            cursor: pointer;
+
+            margin: 10px;
+
+        }
+
+        #status {
+
+            font-size: 20px;
+
+            margin: 10px;
+
+        }
+
+    </style>
+
 </head>
+
+
 <body>
 
+<h1>PyTorch Chess AI</h1>
+
+<div id="status">
+    Your turn
+</div>
+
+<div id="board"></div>
+
+<button onclick="newGame()">
+    New Game
+</button>
+
+
+<script>
+
+    let currentFen = "";
+
+    let selected = null;
+
+
+    const pieces = {
+
+        "P": "♙",
+        "N": "♘",
+        "B": "♗",
+        "R": "♖",
+        "Q": "♕",
+        "K": "♔",
+
+        "p": "♟",
+        "n": "♞",
+        "b": "♝",
+        "r": "♜",
+        "q": "♛",
+        "k": "♚"
+
+    };
+
+
+    function getBoardFromFen(fen) {
+
+        let position = fen.split(" ")[0];
+
+        let rows = position.split("/");
+
+        let board = [];
+
+        for (let row of rows) {
+
+            let result = "";
+
+            for (let char of row) {
+
+                if (!isNaN(char)) {
+
+                    result += ".".repeat(
+                        Number(char)
+                    );
+
+                } else {
+
+                    result += char;
+
+                }
+
+            }
+
+            board.push(result);
+
+        }
+
+        return board;
+
+    }
+
+
+    function drawBoard() {
+
+        let boardDiv =
+            document.getElementById("board");
+
+        boardDiv.innerHTML = "";
+
+        let board =
+            getBoardFromFen(currentFen);
+
+
+        for (let r = 0; r < 8; r++) {
+
+            for (let c = 0; c < 8; c++) {
+
+                let square =
+                    document.createElement("div");
+
+                square.classList.add("square");
+
+
+                if ((r + c) % 2 === 0)
+
+                    square.classList.add("light");
+
+                else
+
+                    square.classList.add("dark");
+
+
+                if (
+                    selected &&
+                    selected.r === r &&
+                    selected.c === c
+                ) {
+
+                    square.classList.add(
+                        "selected"
+                    );
+
+                }
+
+
+                let piece = board[r][c];
+
+
+                if (piece !== ".") {
+
+                    square.innerText =
+                        pieces[piece];
+
+                }
+
+
+                square.onclick = function() {
+
+                    clickSquare(r, c);
+
+                };
+
+
+                boardDiv.appendChild(square);
+
+            }
+
+        }
+
+    }
+
+
+    function clickSquare(r, c) {
+
+        let board =
+            getBoardFromFen(currentFen);
+
+
+        let piece =
+            board[r][c];
+
+
+        if (selected === null) {
+
+            if (piece === ".")
+                return;
+
+
+            // Only allow white pieces
+
+            if (piece === piece.toLowerCase())
+                return;
+
+
+            selected = {
+                r: r,
+                c: c
+            };
+
+            drawBoard();
+
+            return;
+
+        }
+
+
+        let fromFile =
+            String.fromCharCode(
+                97 + selected.c
+            );
+
+        let fromRank =
+            8 - selected.r;
+
+
+        let toFile =
+            String.fromCharCode(
+                97 + c
+            );
+
+        let toRank =
+            8 - r;
+
+
+        let move =
+            fromFile +
+            fromRank +
+            toFile +
+            toRank;
+
+
+        selected = null;
+
+        sendMove(move);
+
+    }
+
+
+    async function sendMove(move) {
+
+        document.getElementById("status")
+            .innerText = "AI thinking...";
+
+
+        let response =
+            await fetch("/move", {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    move: move
+                })
+
+            });
+
+
+        let data =
+            await response.json();
+
+
+        if (data.error) {
+
+            document.getElementById("status")
+                .innerText = data.error;
+
+            return;
+
+        }
+
+
+        currentFen = data.fen;
+
+        drawBoard();
+
+
+        if (data.game_over) {
+
+            document.getElementById("status")
+                .innerText =
+                "Game Over: " +
+                data.result;
+
+        } else {
+
+            document.getElementById("status")
+                .innerText =
+                "Your turn";
+
+        }
+
+    }
+
+
+    async function loadBoard() {
+
+        let response =
+            await fetch("/board");
+
+        let data =
+            await response.json();
+
+        currentFen = data.fen;
+
+        drawBoard();
+
+    }
+
+
+    async function newGame() {
+
+        let response =
+            await fetch("/new", {
+
+                method: "POST"
+
+            });
+
+
+        let data =
+            await response.json();
+
+
+        currentFen = data.fen;
+
+        selected = null;
+
+        document.getElementById("status")
+            .innerText = "Your turn";
+
+        drawBoard();
+
+    }
+
+
+    loadBoard();
+
+</script>
+
 </body>
+
 </html>
